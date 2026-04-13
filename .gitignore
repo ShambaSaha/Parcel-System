@@ -1,0 +1,34 @@
+# =====================
+# Node / JS
+# =====================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =====================
+# Next.js
+# =====================
+.next/
+out/
+.env.local
+.env.production
+.env*
+
+# =====================
+# Backend
+# =====================
+dist/
+logs/
+
+# =====================
+# OS
+# =====================
+.DS_Store
+Thumbs.db
+
+# =====================
+# Editor
+# =====================
+.vscode/
+.idea/

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <style>
+            body { 
+                font-family: "Segoe UI", 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, serif;
+                margin: 20px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }
+            table, th, td {
+                border: 1px solid #ddd;
+            }
+            th, td {
+                padding: 8px;
+                text-align: left;
+            }
+            th {
+                background-color: #f4f4f4;
+            }
+            h1 {
+                color: #333;
+            }
+        </style>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Truck Location Dashboard</title>
+    </head>
+    <body>
+        <h1>Truck Location Dashboard</h1>
+        
+        <% if (locals.user) { %>
+            <p>Welcome, <%= user.name %>!</p>
+        <% } else { %>
+            <p>Please <a href="/login">login</a> to view your trucks' locations.</p>
+        <% } %>
+        
+        <div>
+            <h3>Truck Locations</h3>
+            <% if (locals.user) { %>
+                <p>Here are the trucks assigned to you:</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>S. No</th>
+                            <th>Vehicle ID</th>
+                            <th>Vehicle Number</th>
+                            <th>Current Location</th>
+                            <th>Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% user.trucks.forEach((truck, index) => { %>
+                            <tr>
+                                <td><%= index + 1 %></td>
+                                <td><%= truck.vehicleId %></td>
+                                <td><%= truck.vehicleNumber %></td>
+                                <td><%= truck.realTimeLocation ? 'Lat: ' + truck.realTimeLocation.lat + ', Long: ' + truck.realTimeLocation.lng : 'Not Available' %></td>
+                                <td><%= truck.lastUpdated || 'Not Available' %></td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            <% } else { %>
+                <p>No trucks found for you. Please ensure your account is set up with assigned trucks.</p>
+            <% } %>
+        </div>
+        
+        <div>
+            <% if (locals.user) { %>
+                <form method="POST" action="/vehicle/add">
+                    <label for="vehicleId">Add a new vehicle</label><br>
+                    <input type="text" id="vehicleId" name="vehicleId" placeholder="Vehicle ID" required /><br>
+                    <input type="text" id="vehicleNumber" name="vehicleNumber" placeholder="Vehicle Number" required /><br>
+                    <input type="number" id="volume" name="volume" placeholder="Vehicle Volume" required /><br>
+                    <input type="number" id="fuelCapacity" name="fuelCapacity" placeholder="Fuel Capacity" required /><br>
+                    <button type="submit">Add Vehicle</button>
+                </form>
+            <% } %>
+        </div>
+    </body>
+</html>

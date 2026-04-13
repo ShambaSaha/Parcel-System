@@ -1,0 +1,17 @@
+[
+    {
+        "icon":"MdPlace",
+        "title":"Find us",
+        "details":"Kolkata"
+    },
+    {
+        "icon":"IoCallSharp",
+        "title":"Call us",
+        "details":"+91 9748102685"
+    },
+    {
+        "icon":"TbMailPlus",
+        "title":"Mail us",
+        "details":"shambasaha@gmail.com"
+    }
+]
