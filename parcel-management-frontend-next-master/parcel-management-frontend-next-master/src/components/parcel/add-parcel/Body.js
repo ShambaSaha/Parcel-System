@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import ParcelQr from './ParcelQr';
 
@@ -141,7 +142,37 @@ const AddParcelBody = () => {
                         radial-gradient(at 0% 0%, hsla(343,100%,76%,0.15) 0px, transparent 50%);
                 }
                 
-                /* Custom Glass Inputs */
+                /* ==========================================
+                   IMMERSIVE HOVER & INTERACTION ANIMATIONS 
+                   ========================================== */
+
+                /* 1. Breathing Glass Panels */
+                .glass-panel {
+                    background-color: rgba(255, 255, 255, 0.4);
+                    border: 1px solid rgba(255, 255, 255, 0.6);
+                    transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+                }
+                .glass-panel:hover {
+                    transform: translateY(-4px) scale(1.01);
+                    background-color: rgba(255, 255, 255, 0.65);
+                    box-shadow: 0 15px 35px -10px rgba(71, 85, 105, 0.15);
+                    border-color: rgba(255, 255, 255, 0.9);
+                    z-index: 5;
+                }
+
+                /* 2. Magnetic Buttons */
+                .btn {
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                }
+                .btn:hover:not(:disabled) {
+                    transform: scale(1.04) translateY(-2px);
+                    box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.3) !important;
+                }
+                .btn:active:not(:disabled) {
+                    transform: scale(0.98) translateY(0);
+                }
+
+                /* 3. Popping Inputs & Dropdowns */
                 .custom-input, .custom-select {
                     background-color: rgba(255, 255, 255, 0.7);
                     border: 1px solid rgba(148, 163, 184, 0.5);
@@ -149,36 +180,39 @@ const AddParcelBody = () => {
                     padding: 10px 14px;
                     color: #1e293b;
                     font-size: 0.95rem;
-                    transition: all 0.25s ease;
                     width: 100%;
                     backdrop-filter: blur(8px);
+                    position: relative;
+                    z-index: 1;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 }
                 .custom-input::placeholder {
                     color: #94a3b8;
+                    transition: color 0.3s ease;
+                }
+                .custom-input:hover, .custom-select:hover {
+                    transform: scale(1.02);
+                    background-color: #ffffff;
+                    border-color: rgba(99, 102, 241, 0.4);
+                    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.08);
+                    z-index: 2; /* Pops over neighboring inputs */
+                }
+                .custom-input:hover::placeholder {
+                    color: #64748b; /* Darkens placeholder slightly on hover */
                 }
                 .custom-input:focus, .custom-select:focus {
+                    transform: scale(1.02);
                     background-color: #ffffff;
                     border-color: #6366f1;
                     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
                     outline: none;
+                    z-index: 3;
                 }
 
                 /* Dropdown Options Styling */
-                .custom-select {
-                    cursor: pointer;
-                    appearance: auto;
-                }
-                .custom-select option {
-                    background-color: #f8fafc;
-                    color: #0f172a;
-                    font-weight: 500;
-                    padding: 12px;
-                    font-size: 0.95rem;
-                }
-                .custom-select option:hover, .custom-select option:checked {
-                    background-color: #e0e7ff;
-                    color: #4f46e5;
-                }
+                .custom-select { cursor: pointer; appearance: auto; }
+                .custom-select option { background-color: #f8fafc; color: #0f172a; font-weight: 500; padding: 12px; font-size: 0.95rem; }
+                .custom-select option:hover, .custom-select option:checked { background-color: #e0e7ff; color: #4f46e5; }
                 
                 /* Animations */
                 @keyframes pulse-dot {
@@ -186,9 +220,7 @@ const AddParcelBody = () => {
                     70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
                     100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
                 }
-                .network-pulse {
-                    animation: pulse-dot 2s infinite;
-                }
+                .network-pulse { animation: pulse-dot 2s infinite; }
 
                 /* Custom Modal Overlays */
                 .custom-modal-overlay {
@@ -309,8 +341,8 @@ const AddParcelBody = () => {
                                     </div>
                                 </div>
 
-                                {/* Shared Inner Box Styling applied here */}
-                                <div className="p-3 mt-2 rounded-4" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', border: '1px solid rgba(255, 255, 255, 0.6)' }}>
+                                {/* Immersive Inner Box */}
+                                <div className="p-3 mt-2 rounded-4 glass-panel position-relative">
                                     <label className="form-label small fw-bold text-slate-700 mb-2">Dimensions (cm) & Weight</label>
                                     <div className="d-flex gap-2 mb-3">
                                         <input type="number" name="length" value={parcelData.length} onChange={handleChange} className="custom-input text-center px-1" placeholder="L" required />
@@ -334,8 +366,8 @@ const AddParcelBody = () => {
                                 </h5>
 
                                 <div className="d-flex flex-column gap-3 flex-grow-1">
-                                    {/* Origin Panel - Styled like the Inner Box */}
-                                    <div className="p-3 rounded-4" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', border: '1px solid rgba(255, 255, 255, 0.6)' }}>
+                                    {/* Origin Panel - Immersive Glass Panel */}
+                                    <div className="p-3 rounded-4 glass-panel position-relative">
                                         <label className="form-label small fw-bold text-slate-700 mb-2">Origin (Sender)</label>
                                         <div className="row g-2">
                                             <div className="col-12">
@@ -350,8 +382,8 @@ const AddParcelBody = () => {
                                         </div>
                                     </div>
 
-                                    {/* Destination Panel - Styled like the Inner Box */}
-                                    <div className="p-3 rounded-4 flex-grow-1" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', border: '1px solid rgba(255, 255, 255, 0.6)' }}>
+                                    {/* Destination Panel - Immersive Glass Panel */}
+                                    <div className="p-3 rounded-4 flex-grow-1 glass-panel position-relative">
                                         <label className="form-label small fw-bold text-slate-700 mb-2">Destination (Receiver)</label>
                                         <div className="row g-2">
                                             <div className="col-12">
@@ -375,9 +407,8 @@ const AddParcelBody = () => {
                                     Finalization
                                 </h5>
 
-                                {/* Action Panel - Styled exactly like the Inner Boxes from Col 1 and 2 */}
-                                <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center rounded-4 p-4" 
-                                     style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', border: '1px solid rgba(255, 255, 255, 0.6)' }}>
+                                {/* Action Panel - Immersive Glass Panel */}
+                                <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center rounded-4 p-4 glass-panel position-relative">
                                     
                                     {!parcelId ? (
                                         <div className="text-center w-100">
@@ -388,7 +419,7 @@ const AddParcelBody = () => {
                                                 type="submit" 
                                                 className="btn btn-dark btn-lg w-100 rounded-pill shadow-sm"
                                                 disabled={loading}
-                                                style={{ padding: '16px 0', transition: 'all 0.3s ease', backgroundColor: '#0f172a', border: 'none' }}
+                                                style={{ padding: '16px 0', backgroundColor: '#0f172a', border: 'none' }}
                                             >
                                                 {loading ? (
                                                     <div className="d-flex align-items-center justify-content-center gap-2">
@@ -407,7 +438,7 @@ const AddParcelBody = () => {
                                             
                                             {/* Scaled QR Container to fit without scrolling */}
                                             <div className="qr-scale-container bg-white p-3 rounded-4 shadow-sm border border-slate-200">
-                                                <ParcelQr parcelId={parcelId} />
+                                                <ParcelQr key={parcelId} parcelId={parcelId} />
                                             </div>
                                             
                                             <p className="small text-slate-500 mt-4 mb-3 fw-medium">Ready for transit scanning</p>
