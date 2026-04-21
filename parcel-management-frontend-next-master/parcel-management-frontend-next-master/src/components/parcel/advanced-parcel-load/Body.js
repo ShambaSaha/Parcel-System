@@ -37,24 +37,43 @@ const AdvancedParcelLoadBody = () => {
         [allParcel]
     );
 
-    const maxVolume = selectedVehicle
-        ? selectedVehicle.volume.length *
-          selectedVehicle.volume.breadth *
-          selectedVehicle.volume.height
-        : 0;
+    // ✅ FIXED: Safely calculate Max Volume handling both Objects and flat Numbers
+    const maxVolume = useMemo(() => {
+        if (!selectedVehicle) return 0;
+        
+        if (selectedVehicle.volume && typeof selectedVehicle.volume === "object") {
+            const l = selectedVehicle.volume.length || 0;
+            const b = selectedVehicle.volume.breadth || 0;
+            const h = selectedVehicle.volume.height || 0;
+            const calculatedVol = l * b * h;
+            return calculatedVol > 0 ? calculatedVol : (selectedVehicle.volume.total || 0);
+        }
+        
+        // If volume is just a flat number from the Mongoose Schema
+        return Number(selectedVehicle.volume) || 0;
+    }, [selectedVehicle]);
 
-    const usedVolume = selectedParcels.reduce(
-        (sum, p) =>
-            sum +
-            p.dimensions.length *
-            p.dimensions.breadth *
-            p.dimensions.height,
-        0
-    );
+    // ✅ FIXED: Safely calculate Used Volume from parcels
+    const usedVolume = useMemo(() => {
+        return selectedParcels.reduce((sum, p) => {
+            // Check if dimensions object exists, otherwise fallback to root object
+            const dims = p.dimensions || p; 
+            const l = Number(dims.length) || 0;
+            const b = Number(dims.breadth) || 0;
+            const h = Number(dims.height) || 0;
+            
+            const vol = l * b * h;
+            // Fallback to a flat volume/weight if dimensions are missing
+            return sum + (vol > 0 ? vol : (Number(p.volume) || Number(p.weight) || 0));
+        }, 0);
+    }, [selectedParcels]);
 
-    const usagePercent = maxVolume
-        ? Math.round((usedVolume / maxVolume) * 100)
-        : 0;
+    // ✅ FIXED: Calculate percentage safely and cap at 100%
+    const usagePercent = useMemo(() => {
+        if (!maxVolume || maxVolume === 0) return 0;
+        const percent = Math.round((usedVolume / maxVolume) * 100);
+        return Math.min(percent, 100); // Cap at 100 so UI doesn't break
+    }, [maxVolume, usedVolume]);
 
     async function getAllParcel() {
         try {
@@ -114,13 +133,23 @@ const AdvancedParcelLoadBody = () => {
     function calculateOptimalLoad() {
         if (!selectedVehicle) return;
 
-        const truck = new TruckLoadOptimizer(
-            selectedVehicle.volume.length,
-            selectedVehicle.volume.breadth,
-            selectedVehicle.volume.height
-        );
+        // ✅ FIXED: Provide safe fallbacks for optimizer if volume isn't an object
+        const vLength = selectedVehicle.volume?.length || 200; 
+        const vBreadth = selectedVehicle.volume?.breadth || 100;
+        const vHeight = selectedVehicle.volume?.height || 100;
 
-        const parcels = allParcel.map(p => new Parcel(p._id, p.dimensions.length, p.dimensions.breadth, p.dimensions.height));
+        const truck = new TruckLoadOptimizer(vLength, vBreadth, vHeight);
+
+        const parcels = allParcel.map(p => {
+            const dims = p.dimensions || p;
+            return new Parcel(
+                p._id, 
+                dims.length || 10, 
+                dims.breadth || 10, 
+                dims.height || 10
+            );
+        });
+        
         const result = truck.optimizeLoading(parcels);
         
         markParcels(result.loadedParcels);
@@ -137,17 +166,84 @@ const AdvancedParcelLoadBody = () => {
         })));
     }
 
-    function toggleParcelSelection(parcelId) {
+   function toggleParcelSelection(parcelId) {
+        // 1. Ensure a vehicle is selected first
+        if (!selectedVehicle) {
+            setModalConfig({ 
+                isOpen: true, 
+                title: "Action Denied", 
+                message: "Please select a vehicle before loading parcels.", 
+                type: "error" 
+            });
+            return;
+        }
+
+        // 2. Find the exact parcel the user is trying to click
+        const parcelToToggle = allParcel.find(p => String(p._id) === String(parcelId));
+        if (!parcelToToggle) return;
+
+        // 3. If they are trying to ADD the parcel, check the capacity
+        if (parcelToToggle.status !== "selected") {
+            // Calculate this specific parcel's volume safely
+            const dims = parcelToToggle.dimensions || parcelToToggle;
+            const l = Number(dims.length) || 0;
+            const b = Number(dims.breadth) || 0;
+            const h = Number(dims.height) || 0;
+            
+            const parcelVol = (l * b * h) > 0 
+                ? (l * b * h) 
+                : (Number(parcelToToggle.volume) || Number(parcelToToggle.weight) || 0);
+
+            // Check against remaining capacity
+            if (usedVolume + parcelVol > maxVolume) {
+                setModalConfig({ 
+                    isOpen: true, 
+                    title: "Capacity Exceeded", 
+                    message: "Cannot add this parcel. It exceeds the remaining maximum volume of the truck.", 
+                    type: "error" 
+                });
+                return; // Stop execution, do not select the parcel
+            }
+        }
+
+        // 4. If capacity is fine (or if they are deselecting), update the state
         setAllParcel(prev => prev.map(p =>
-            String(p._id) === String(parcelId) ? { ...p, status: p.status === "selected" ? "not-selected" : "selected" } : p
+            String(p._id) === String(parcelId) 
+                ? { ...p, status: p.status === "selected" ? "not-selected" : "selected" } 
+                : p
         ));
     }
 
     const parcels3D = useMemo(() => {
-        return selectedParcels.map((p, i) => ({
-            position: [-5 + (i % 4) * 2.5, 0.3 + Math.floor(i / 8) * 1.2, -1.5 + ((i % 8) % 2) * 2],
-            size: [p.dimensions.length / 50, p.dimensions.height / 50, p.dimensions.breadth / 50]
-        }));
+        // 🛠️ TWEAK THIS: Increase this number to shrink the boxes.
+        // If DB is in mm, try 1000. If cm, try 100. 
+        // Based on your screenshot, starting at 300 might be a good baseline.
+        const SCALE_FACTOR = 300; 
+        
+        // 🛠️ TWEAK THIS: Adjust the spacing multiplier so boxes don't float too far apart
+        const SPACING = 0.8; 
+
+        return selectedParcels.map((p, i) => {
+            const dims = p.dimensions || p;
+            const l = Number(dims.length) || 10;
+            const b = Number(dims.breadth) || 10;
+            const h = Number(dims.height) || 10;
+            
+            return {
+                // Adjusted positioning to keep them tighter together in the truck bed
+                position: [
+                    -2 + (i % 4) * SPACING, 
+                    0.3 + Math.floor(i / 8) * SPACING, 
+                    -0.5 + ((i % 8) % 2) * SPACING
+                ],
+                // Apply the new scale factor to the raw dimensions
+                size: [
+                    l / SCALE_FACTOR, 
+                    h / SCALE_FACTOR, 
+                    b / SCALE_FACTOR
+                ]
+            };
+        });
     }, [selectedParcels]);
 
     return (
@@ -261,7 +357,7 @@ const AdvancedParcelLoadBody = () => {
                                 <div className="glass-panel p-3 h-100 d-flex flex-column justify-content-center">
                                     {selectedVehicle ? (
                                         <>
-                                            <h6 className="fw-bold mb-1">{selectedVehicle.name}</h6>
+                                            <h6 className="fw-bold mb-1">{selectedVehicle.name || selectedVehicle.vehicleNumber || 'Selected Vehicle'}</h6>
                                             <div className="d-flex justify-content-between mb-1 mt-3 small fw-bold text-secondary">
                                                 <span>Capacity Utilization</span>
                                                 <span>{usagePercent}%</span>

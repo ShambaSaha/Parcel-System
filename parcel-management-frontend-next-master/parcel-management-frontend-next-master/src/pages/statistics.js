@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import {useGlobalContext} from "../context/GlobalContext"
+import { useGlobalContext } from "../context/GlobalContext"
 import {
   FaBoxOpen,
   FaQrcode,
@@ -16,22 +16,22 @@ import {
   FaCubes,
 } from "react-icons/fa";
 
-import TrackVehicle from "../pages/parcel/add-parcel";
-import ViewAllParcelBody from "../pages/parcel/view-all"
-
 export default function Dashboard() {
+  // All stats initialized to 0; no more hardcoded values
   const [stats, setStats] = useState({
     totalParcels: 0,
     pending: 0,
-    delivered: 27,
-    cancelled: 3,
+    delivered: 0,
+    cancelled: 0,
     inTransit: 0,
     totalVehicles: 0,
-    onHold: 1,
+    onHold: 0,
     failed: 0,
   });
 
-    const { isLoggedIn } = useGlobalContext();
+  const [vehicles, setVehicles] = useState([]);
+
+  const { isLoggedIn } = useGlobalContext();
   const router = useRouter();
 
   // 1️⃣ Auth redirect hook
@@ -41,7 +41,7 @@ export default function Dashboard() {
     }
   }, [isLoggedIn, router]);
 
-  // 2️⃣ Fetch parcels
+  // 2️⃣ Fetch parcels and calculate dynamic statistics
   useEffect(() => {
     if (!isLoggedIn) return;
 
@@ -56,19 +56,42 @@ export default function Dashboard() {
         );
 
         const result = await res.json();
-        setStats((prev) => ({
-          ...prev,
-          totalParcels: result.data.length,
-        }));
+        
+        if (result.data && Array.isArray(result.data)) {
+          // Dynamically count the status of each parcel
+          let pending = 0, delivered = 0, cancelled = 0, inTransit = 0, onHold = 0, failed = 0;
+          
+          result.data.forEach(parcel => {
+            const pStatus = (parcel.status || "").toLowerCase();
+            
+            if (pStatus.includes("pending")) pending++;
+            else if (pStatus.includes("deliver")) delivered++;
+            else if (pStatus.includes("cancel")) cancelled++;
+            else if (pStatus.includes("transit") || pStatus.includes("progress")) inTransit++;
+            else if (pStatus.includes("hold")) onHold++;
+            else if (pStatus.includes("fail")) failed++;
+          });
+
+          setStats((prev) => ({
+            ...prev,
+            totalParcels: result.data.length,
+            pending,
+            delivered,
+            cancelled,
+            inTransit,
+            onHold,
+            failed
+          }));
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch parcels:", err);
       }
     };
 
     fetchParcels();
   }, [isLoggedIn]);
 
-  // 3️⃣ Fetch vehicles
+  // 3️⃣ Fetch vehicles for table and stats
   useEffect(() => {
     if (!isLoggedIn) return;
 
@@ -83,12 +106,18 @@ export default function Dashboard() {
         );
 
         const result = await res.json();
-        setStats((prev) => ({
-          ...prev,
-          totalVehicles: result.data.length,
-        }));
+        
+        if (result.status === "success" && Array.isArray(result.data)) {
+          setStats((prev) => ({
+            ...prev,
+            totalVehicles: result.data.length,
+          }));
+          
+          // Store up to the 5 most recent vehicles for the dashboard preview
+          setVehicles(result.data.slice(0, 5)); 
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch vehicles:", err);
       }
     };
 
@@ -98,13 +127,10 @@ export default function Dashboard() {
   // ✅ CONDITIONAL RETURN AFTER ALL HOOKS
   if (!isLoggedIn) return null;
 
-
-
-
   return (
     <div className="dashboard">
       {/* Header */}
-      <Head><title>DashBoard</title></Head>
+      <Head><title>Dashboard</title></Head>
       <div className="dashboard-header">
         <h2>
           👋 Welcome back to,
@@ -136,34 +162,65 @@ export default function Dashboard() {
           <thead>
             <tr>
               <th>Vehicle ID</th>
-              <th>Type</th>
+              <th>Number</th>
+              <th>Volume / Weight</th>
+              <th>Fuel Capacity</th>
               <th>Status</th>
-              <th>Location</th>
-              <th>Driver</th>
+              <th>Route / Driver</th>
             </tr>
           </thead>
           <tbody>
-            <TableRow
-              id="TRK-102"
-              type="Mini Truck"
-              status="Active"
-              location="Delhi"
-              driver="John"
-            />
-            <TableRow
-              id="TRK-221"
-              type="Cargo Van"
-              status="Idle"
-              location="Mumbai"
-              driver="Jane"
-            />
-            <TableRow
-              id="TRK-330"
-              type="Pickup"
-              status="Maintenance"
-              location="Kolkata"
-              driver="Mike"
-            />
+            {vehicles.length > 0 ? (
+              vehicles.map((vehicle, index) => {
+                // Map properties dynamically to fit both the backend schema and view-all response
+                const vId = vehicle.vehicleId || vehicle._id?.substring(0, 7) || "N/A";
+                const vNum = vehicle.vehicleNumber || vehicle.number || "N/A";
+                
+                // Safely handle Volume/Weight in case the database returns an object
+                let vVol = "N/A";
+                const rawVolume = vehicle.volume || vehicle.weight;
+
+                if (rawVolume) {
+                  if (typeof rawVolume === "object") {
+                    // Extract total if it exists, otherwise format as L x B x H
+                    vVol = rawVolume.total !== undefined 
+                      ? rawVolume.total 
+                      : `${rawVolume.length || 0}x${rawVolume.breadth || 0}x${rawVolume.height || 0}`;
+                  } else {
+                    vVol = rawVolume;
+                  }
+                }
+
+                const vFuel = vehicle.fuelCapacity ? `${vehicle.fuelCapacity} L` : "N/A";
+                
+                // Fallback logic for status
+                const hasRoute = vehicle.currentRoute || vehicle.routeId;
+                const status = vehicle.status || (hasRoute ? "IN TRANSIT" : "IDLE");
+                  
+                // Display Route ID if available, otherwise show Driver assignment status
+                const routeOrDriver = hasRoute 
+                  ? `Route: ${hasRoute}` 
+                  : (vehicle.assignedDriver ? "Driver Assigned" : "Unassigned");
+
+                return (
+                  <TableRow
+                    key={vehicle._id || index}
+                    id={vId}
+                    number={vNum} 
+                    volume={vVol}
+                    fuel={vFuel}
+                    status={status.toUpperCase()}
+                    routeOrDriver={routeOrDriver}
+                  />
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan="6" style={{ textAlign: "center", padding: "1rem" }}>
+                  Loading vehicles or no vehicles available...
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -211,7 +268,6 @@ export default function Dashboard() {
           icon={FaCubes}
         />
       </div>
-
     </div>
   );
 }
@@ -225,17 +281,23 @@ const StatPill = ({ title, value, color }) => (
   </div>
 );
 
-const TableRow = ({ id, type, status, location, driver }) => (
-  <tr>
-    <td>{id}</td>
-    <td>{type}</td>
-    <td>
-      <span className="status">{status}</span>
-    </td>
-    <td>{location}</td>
-    <td>{driver}</td>
-  </tr>
-);
+const TableRow = ({ id, number, volume, fuel, status, routeOrDriver }) => {
+  // Simple logic to color-code status based on IDLE vs IN TRANSIT
+  const statusClass = status.includes("IN TRANSIT") || status.includes("ACTIVE") ? "active" : "idle";
+  
+  return (
+    <tr>
+      <td>{id}</td>
+      <td>{number}</td>
+      <td>{volume}</td>
+      <td>{fuel}</td>
+      <td>
+        <span className={`status ${statusClass}`}>{status}</span>
+      </td>
+      <td>{routeOrDriver}</td>
+    </tr>
+  );
+};
 
 const ActionCard = ({ title, link, icon: Icon }) => (
   <Link href={link} className="action-card-link">

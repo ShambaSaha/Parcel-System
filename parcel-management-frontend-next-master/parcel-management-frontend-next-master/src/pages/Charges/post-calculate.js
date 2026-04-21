@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 const PostalCalculator = () => {
     const [formData, setFormData] = useState({
@@ -140,74 +141,203 @@ const PostalCalculator = () => {
     };
 
     return (
-        <div className="container my-4">
-            <h1>Postal Rate Calculator</h1>
-            <form onSubmit={handleSubmit}>
-                <div className="mb-3">
-                    <label htmlFor="senderPincode" className="form-label">Sender Pincode</label>
-                    <input
-                        type="text"
-                        id="senderPincode"
-                        name="senderPincode"
-                        className="form-control"
-                        value={formData.senderPincode}
-                        onChange={handleInputChange}
-                        required
-                    />
-                </div>
+        <div className="calc-page-wrapper">
+            <style dangerouslySetInnerHTML={{__html: `
+                .calc-page-wrapper {
+                    min-height: 100vh;
+                    background-color: #0f1115;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 3rem 1rem;
+                    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                }
+                .calc-card {
+                    background: #1a1d24;
+                    border: 1px solid #2d313a;
+                    border-radius: 16px;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+                    padding: 3rem;
+                    width: 100%;
+                    max-width: 550px;
+                    color: #e2e8f0;
+                }
+                .calc-card h1, .calc-card h2 {
+                    text-transform: uppercase;
+                    letter-spacing: 1.5px;
+                    font-weight: 700;
+                    color: #ffffff;
+                    text-align: center;
+                }
+                .calc-card h1 {
+                    font-size: 1.75rem;
+                    margin-bottom: 2rem;
+                }
+                .calc-card h2 {
+                    font-size: 1.25rem;
+                    margin-bottom: 1rem;
+                }
+                .form-label {
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    color: #94a3b8;
+                    margin-bottom: 0.4rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .custom-input {
+                    background-color: #0f1115;
+                    border: 1px solid #334155;
+                    color: #f8fafc;
+                    border-radius: 8px;
+                    padding: 0.8rem 1rem;
+                    width: 100%;
+                    transition: all 0.3s ease;
+                }
+                .custom-input:focus {
+                    background-color: #0f1115;
+                    border-color: #3b82f6;
+                    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+                    outline: none;
+                    color: #ffffff;
+                }
+                select.custom-input {
+                    appearance: none;
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+                    background-repeat: no-repeat;
+                    background-position: right 1rem center;
+                    background-size: 16px;
+                }
+                .calc-btn {
+                    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+                    color: white;
+                    border: none;
+                    padding: 1rem;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
+                    width: 100%;
+                    margin-top: 1.5rem;
+                    transition: transform 0.2s ease, box-shadow 0.2s ease;
+                }
+                .calc-btn:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+                }
+                .calc-btn:disabled {
+                    background: #334155;
+                    color: #64748b;
+                    cursor: not-allowed;
+                }
+                .result-container {
+                    background: rgba(37, 99, 235, 0.1);
+                    border: 1px solid rgba(37, 99, 235, 0.3);
+                    border-radius: 12px;
+                    padding: 1.5rem;
+                    margin-top: 2.5rem;
+                    text-align: center;
+                }
+                .result-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin: 0.5rem 0;
+                    padding: 0.5rem 0;
+                    border-bottom: 1px solid rgba(255,255,255,0.05);
+                }
+                .result-row:last-child {
+                    border-bottom: none;
+                }
+                .result-label {
+                    color: #cbd5e1;
+                    font-weight: 500;
+                }
+                .result-value {
+                    font-weight: 700;
+                    color: #60a5fa;
+                    font-size: 1.1rem;
+                }
+            `}} />
 
-                <div className="mb-3">
-                    <label htmlFor="receiverPincode" className="form-label">Receiver Pincode</label>
-                    <input
-                        type="text"
-                        id="receiverPincode"
-                        name="receiverPincode"
-                        className="form-control"
-                        value={formData.receiverPincode}
-                        onChange={handleInputChange}
-                        required
-                    />
-                </div>
+            <div className="calc-card">
+                <h1>POSTAL RATE CALCULATOR</h1>
+                <form onSubmit={handleSubmit}>
+                    <div className="mb-3">
+                        <label htmlFor="senderPincode" className="form-label">Sender Pincode</label>
+                        <input
+                            type="text"
+                            id="senderPincode"
+                            name="senderPincode"
+                            className="custom-input"
+                            value={formData.senderPincode}
+                            onChange={handleInputChange}
+                            required
+                            placeholder="e.g. 110001"
+                        />
+                    </div>
 
-                <div className="mb-3">
-                    <label htmlFor="weight" className="form-label">Weight (in grams)</label>
-                    <input
-                        type="number"
-                        id="weight"
-                        name="weight"
-                        className="form-control"
-                        value={formData.weight}
-                        onChange={handleInputChange}
-                        required
-                    />
-                </div>
+                    <div className="mb-3">
+                        <label htmlFor="receiverPincode" className="form-label">Receiver Pincode</label>
+                        <input
+                            type="text"
+                            id="receiverPincode"
+                            name="receiverPincode"
+                            className="custom-input"
+                            value={formData.receiverPincode}
+                            onChange={handleInputChange}
+                            required
+                            placeholder="e.g. 400001"
+                        />
+                    </div>
 
-                <div className="mb-3">
-                    <label htmlFor="type" className="form-label">Post Type</label>
-                    <select
-                        id="type"
-                        name="type"
-                        className="form-select"
-                        value={formData.type}
-                        onChange={handleInputChange}
-                    >
-                        <option value="local">Local</option>
-                        <option value="non-local">Non-Local</option>
-                    </select>
-                </div>
+                    <div className="mb-3">
+                        <label htmlFor="weight" className="form-label">Weight (in grams)</label>
+                        <input
+                            type="number"
+                            id="weight"
+                            name="weight"
+                            className="custom-input"
+                            value={formData.weight}
+                            onChange={handleInputChange}
+                            required
+                            placeholder="e.g. 250"
+                        />
+                    </div>
 
-                <button type="submit" className="btn btn-primary" disabled={loading}>
-                    {loading ? "Calculating..." : "Calculate"}
-                </button>
-            </form>
+                    <div className="mb-3">
+                        <label htmlFor="type" className="form-label">Post Type</label>
+                        <select
+                            id="type"
+                            name="type"
+                            className="custom-input"
+                            value={formData.type}
+                            onChange={handleInputChange}
+                        >
+                            <option value="local">Local</option>
+                            <option value="non-local">Non-Local</option>
+                        </select>
+                    </div>
 
-            {result && (
-                <div className="mt-4">
-                    <h2>Result</h2>
-                    <p><strong>Distance:</strong> {result.distance} km</p>
-                    <p><strong>Rate:</strong> ₹{result.rate}</p>
-                </div>
-            )}
+                    <button type="submit" className="calc-btn" disabled={loading}>
+                        {loading ? "CALCULATING..." : "CALCULATE"}
+                    </button>
+                </form>
+
+                {result && (
+                    <div className="result-container">
+                        <h2>RESULT</h2>
+                        <div className="result-row">
+                            <span className="result-label">Distance</span>
+                            <span className="result-value">{result.distance} km</span>
+                        </div>
+                        <div className="result-row">
+                            <span className="result-label">Estimated Rate</span>
+                            <span className="result-value">₹{result.rate}</span>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
