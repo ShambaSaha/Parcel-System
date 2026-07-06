@@ -1,6 +1,84 @@
+"use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import ParcelQr from './ParcelQr';
+
+// --- SMART LOCATION DICTIONARY ---
+// In a full production app, this would be fetched from an API. 
+// For this component, we use a robust localized dictionary.
+const locationData = {
+    "India": {
+        "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Guntur", "Nellore"],
+        "Delhi": ["New Delhi", "North Delhi", "South Delhi", "Central Delhi"],
+        "Gujarat": ["Ahmedabad", "Surat", "Vadodara", "Rajkot"],
+        "Karnataka": ["Bengaluru", "Mysore", "Hubli", "Mangalore"],
+        "Kerala": ["Thiruvananthapuram", "Kochi", "Kozhikode", "Kozhikode"],
+        "Maharashtra": ["Mumbai", "Pune", "Nagpur", "Nashik", "Thane"],
+        "Punjab": ["Ludhiana", "Amritsar", "Jalandhar", "Patiala"],
+        "Rajasthan": ["Jaipur", "Jodhpur", "Udaipur", "Kota"],
+        "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai", "Tiruchirappalli"],
+        "Uttar Pradesh": ["Lucknow", "Kanpur", "Ghaziabad", "Agra", "Varanasi"],
+        "West Bengal": ["Kolkata", "Howrah", "Darjeeling", "Siliguri", "Asansol"],
+    },
+    "United States": {
+        "California": ["Los Angeles", "San Francisco", "San Diego", "Sacramento"],
+        "New York": ["New York City", "Buffalo", "Rochester", "Albany"],
+        "Texas": ["Houston", "San Antonio", "Dallas", "Austin"],
+        "Florida": ["Miami", "Orlando", "Tampa", "Jacksonville"],
+        "Illinois": ["Chicago", "Aurora", "Naperville", "Joliet"]
+    },
+    "United Kingdom": {
+        "England": ["London", "Birmingham", "Manchester", "Liverpool"],
+        "Scotland": ["Glasgow", "Edinburgh", "Aberdeen", "Dundee"],
+        "Wales": ["Cardiff", "Swansea", "Newport"],
+        "Northern Ireland": ["Belfast", "Derry", "Lisburn"]
+    },
+    "Canada": {
+        "Ontario": ["Toronto", "Ottawa", "Mississauga", "Brampton"],
+        "Quebec": ["Montreal", "Quebec City", "Laval"],
+        "British Columbia": ["Vancouver", "Surrey", "Burnaby", "Richmond"],
+        "Alberta": ["Calgary", "Edmonton", "Red Deer"]
+    },
+    "Australia": {
+        "New South Wales": ["Sydney", "Newcastle", "Wollongong"],
+        "Victoria": ["Melbourne", "Geelong", "Ballarat"],
+        "Queensland": ["Brisbane", "Gold Coast", "Sunshine Coast"],
+        "Western Australia": ["Perth", "Mandurah", "Bunbury"]
+    },
+    "Germany": {
+        "Bavaria": ["Munich", "Nuremberg", "Augsburg"],
+        "Berlin": ["Berlin City"],
+        "Hesse": ["Frankfurt", "Wiesbaden", "Kassel"],
+        "North Rhine-Westphalia": ["Cologne", "Düsseldorf", "Dortmund"]
+    },
+    "France": {
+        "Île-de-France": ["Paris", "Boulogne-Billancourt", "Saint-Denis"],
+        "Provence-Alpes": ["Marseille", "Nice", "Toulon"],
+        "Auvergne-Rhône-Alpes": ["Lyon", "Saint-Étienne", "Grenoble"]
+    },
+    "Japan": {
+        "Tokyo": ["Shinjuku", "Shibuya", "Minato"],
+        "Osaka": ["Osaka City", "Sakai", "Higashiosaka"],
+        "Kyoto": ["Kyoto City", "Uji"],
+        "Hokkaido": ["Sapporo", "Asahikawa"]
+    },
+    "Singapore": {
+        "Central Region": ["Downtown Core", "Novena", "Toa Payoh"],
+        "East Region": ["Bedok", "Tampines", "Pasir Ris"],
+        "North Region": ["Woodlands", "Yishun"]
+    },
+    "UAE": {
+        "Dubai": ["Dubai City", "Jebel Ali", "Deira"],
+        "Abu Dhabi": ["Abu Dhabi City", "Al Ain"],
+        "Sharjah": ["Sharjah City", "Khor Fakkan"]
+    },
+    "Saudi Arabia": {
+        "Riyadh": ["Riyadh City", "Al Kharj"],
+        "Makkah": ["Mecca", "Jeddah", "Ta'if"],
+        "Eastern Province": ["Dammam", "Dhahran", "Al Khobar"]
+    }
+};
+
 
 const AddParcelBody = () => {
     const [parcelId, setParcelId] = useState('');
@@ -22,15 +100,60 @@ const AddParcelBody = () => {
         weight: '',
         serviceType: 'Domestic',
         itemType: '',
+        srcCountry: 'India', // Sender is always India
         srcPincode: '',
-        srcCity: '',
         srcState: '',
+        srcCity: '',
+        destCountry: 'India', // Default to India for Domestic
         destPincode: '',
-        destCity: '',
         destState: '',
+        destCity: '',
     });
 
     const closeModal = () => setModalConfig({ ...modalConfig, isOpen: false });
+
+    // Auto-Calculating Postage Logic (Varies by selected country)
+    const estimatedPostage = useMemo(() => {
+        const { itemType, weight, length, breadth, height, serviceType, destCountry } = parcelData;
+
+        if (!itemType || !weight || !length || !breadth || !height) return null;
+        if (serviceType === 'International' && !destCountry) return null;
+
+        const volWeight = (parseFloat(length) * parseFloat(breadth) * parseFloat(height)) / 5000;
+        const actualWeightKG = parseFloat(weight) / 1000;
+        const chargeableWeight = Math.max(actualWeightKG, volWeight);
+        const weightMultiplier = Math.ceil(chargeableWeight / 0.5);
+
+        let calculatedCost = 0;
+
+        if (itemType === 'Blind Literature Packet') {
+            calculatedCost = 0; // Free
+        } else if (serviceType === 'Domestic') {
+            let domesticBaseRate = 0;
+            switch (itemType) {
+                case 'Letter/Document': domesticBaseRate = 15; break;
+                case 'Book Packet': domesticBaseRate = 20; break;
+                case 'Registered Newspaper': domesticBaseRate = 10; break;
+                case 'Parcel': domesticBaseRate = 40; break;
+                default: domesticBaseRate = 30;
+            }
+            calculatedCost = domesticBaseRate * weightMultiplier;
+        } else if (serviceType === 'International') {
+            const internationalRates = {
+                'United States': 2500, 'United Kingdom': 2400, 'Canada': 3650,
+                'Australia': 3800, 'Germany': 3500, 'France': 2500,
+                'Japan': 2400, 'Singapore': 2100, 'UAE': 1900, 'Saudi Arabia': 2200,
+            };
+            const intBaseRate = internationalRates[destCountry] || 3000;
+            calculatedCost = intBaseRate * weightMultiplier;
+        }
+
+        return {
+            cost: calculatedCost.toFixed(2),
+            chargeableWeight: chargeableWeight.toFixed(2),
+            isFree: itemType === 'Blind Literature Packet'
+        };
+    }, [ parcelData.itemType, parcelData.weight, parcelData.length, parcelData.breadth, parcelData.height, parcelData.serviceType, parcelData.destCountry ]);
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -42,18 +165,25 @@ const AddParcelBody = () => {
             length: Number(parcelData.length),
             breadth: Number(parcelData.breadth),
             height: Number(parcelData.height),
+            dimensions: {
+                length: Number(parcelData.length),
+                breadth: Number(parcelData.breadth),
+                height: Number(parcelData.height),
+            },
             weight: Number(parcelData.weight),
             serviceType: parcelData.serviceType,
             itemType: parcelData.itemType,
             srcPincode: parcelData.srcPincode.trim(),
-            srcCity: parcelData.srcCity.trim(),
-            srcState: parcelData.srcState.trim(),
+            srcCity: parcelData.srcCity,
+            srcState: parcelData.srcState,
+            destCountry: parcelData.destCountry,
             destPincode: parcelData.destPincode.trim(),
-            destCity: parcelData.destCity.trim(),
-            destState: parcelData.destState.trim(),
+            destCity: parcelData.destCity,
+            destState: parcelData.destState,
+            cost: estimatedPostage ? Number(estimatedPostage.cost) : 0
         };
 
-        if (Object.values(data).some((field) => !field)) {
+        if (Object.values(parcelData).some((field) => field === '')) {
             setModalConfig({
                 isOpen: true,
                 title: 'Missing Information',
@@ -65,35 +195,32 @@ const AddParcelBody = () => {
 
         const params = {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
         };
 
         try {
             setLoading(true);
-
             const response = await fetch(API, params).then((res) => res.json());
-            if (response.status === 'success') {
+            
+            if (response.status === 'success' || response._id || response.id) {
+                const generatedId = response.data?._id || response.id || response._id;
                 setModalConfig({
                     isOpen: true,
                     title: 'Parcel Registered',
                     message: 'The consignment has been successfully added to the network.',
                     type: 'success'
                 });
-                setParcelId(response.id);
-                resetForm();
+                setParcelId(generatedId);
             } else {
                 setModalConfig({
                     isOpen: true,
                     title: 'Registration Failed',
-                    message: 'An error occurred while attempting to register the parcel.',
+                    message: response.message || 'An error occurred while attempting to register the parcel.',
                     type: 'error'
                 });
             }
         } catch (error) {
-            console.error(error);
             setModalConfig({
                 isOpen: true,
                 title: 'Network Error',
@@ -105,28 +232,46 @@ const AddParcelBody = () => {
         }
     }
 
+    // 🚀 SMART HANDLE CHANGE: Cascading Resets
     function handleChange(e) {
         const { name, value } = e.target;
-        setParcelData({ ...parcelData, [name]: value });
+        
+        if (name === 'serviceType') {
+            setParcelData({ 
+                ...parcelData, 
+                serviceType: value,
+                destCountry: value === 'Domestic' ? 'India' : '',
+                destState: '',
+                destCity: ''
+            });
+        } else if (name === 'destCountry') {
+            setParcelData({ ...parcelData, destCountry: value, destState: '', destCity: '' });
+        } else if (name === 'srcState') {
+            setParcelData({ ...parcelData, srcState: value, srcCity: '' });
+        } else if (name === 'destState') {
+            setParcelData({ ...parcelData, destState: value, destCity: '' });
+        } else {
+            setParcelData({ ...parcelData, [name]: value });
+        }
     }
 
     function resetForm() {
         setParcelData({
-            name: '',
-            length: '',
-            breadth: '',
-            height: '',
-            weight: '',
-            serviceType: 'Domestic',
-            itemType: '',
-            srcPincode: '',
-            srcCity: '',
-            srcState: '',
-            destPincode: '',
-            destCity: '',
-            destState: '',
+            name: '', length: '', breadth: '', height: '', weight: '',
+            serviceType: 'Domestic', itemType: '',
+            srcCountry: 'India', srcPincode: '', srcState: '', srcCity: '',
+            destCountry: 'India', destPincode: '', destState: '', destCity: '',
         });
     }
+
+    // Helper variables to populate dependent dropdowns safely
+    const srcStatesAvailable = Object.keys(locationData["India"] || {});
+    const srcCitiesAvailable = parcelData.srcState ? locationData["India"][parcelData.srcState] : [];
+    
+    const destStatesAvailable = parcelData.destCountry ? Object.keys(locationData[parcelData.destCountry] || {}) : [];
+    const destCitiesAvailable = parcelData.destCountry && parcelData.destState 
+        ? locationData[parcelData.destCountry][parcelData.destState] 
+        : [];
 
     return (
         <>
@@ -142,11 +287,6 @@ const AddParcelBody = () => {
                         radial-gradient(at 0% 0%, hsla(343,100%,76%,0.15) 0px, transparent 50%);
                 }
                 
-                /* ==========================================
-                   IMMERSIVE HOVER & INTERACTION ANIMATIONS 
-                   ========================================== */
-
-                /* 1. Breathing Glass Panels */
                 .glass-panel {
                     background-color: rgba(255, 255, 255, 0.4);
                     border: 1px solid rgba(255, 255, 255, 0.6);
@@ -160,7 +300,6 @@ const AddParcelBody = () => {
                     z-index: 5;
                 }
 
-                /* 2. Magnetic Buttons */
                 .btn {
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
                 }
@@ -172,7 +311,6 @@ const AddParcelBody = () => {
                     transform: scale(0.98) translateY(0);
                 }
 
-                /* 3. Popping Inputs & Dropdowns */
                 .custom-input, .custom-select {
                     background-color: rgba(255, 255, 255, 0.7);
                     border: 1px solid rgba(148, 163, 184, 0.5);
@@ -186,21 +324,24 @@ const AddParcelBody = () => {
                     z-index: 1;
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 }
+                .custom-input:disabled, .custom-select:disabled {
+                    background-color: rgba(226, 232, 240, 0.5);
+                    color: #64748b;
+                    cursor: not-allowed;
+                    border-color: rgba(148, 163, 184, 0.2);
+                }
                 .custom-input::placeholder {
                     color: #94a3b8;
                     transition: color 0.3s ease;
                 }
-                .custom-input:hover, .custom-select:hover {
+                .custom-input:hover:not(:disabled), .custom-select:hover:not(:disabled) {
                     transform: scale(1.02);
                     background-color: #ffffff;
                     border-color: rgba(99, 102, 241, 0.4);
                     box-shadow: 0 6px 16px rgba(99, 102, 241, 0.08);
-                    z-index: 2; /* Pops over neighboring inputs */
+                    z-index: 2; 
                 }
-                .custom-input:hover::placeholder {
-                    color: #64748b; /* Darkens placeholder slightly on hover */
-                }
-                .custom-input:focus, .custom-select:focus {
+                .custom-input:focus:not(:disabled), .custom-select:focus:not(:disabled) {
                     transform: scale(1.02);
                     background-color: #ffffff;
                     border-color: #6366f1;
@@ -209,12 +350,10 @@ const AddParcelBody = () => {
                     z-index: 3;
                 }
 
-                /* Dropdown Options Styling */
                 .custom-select { cursor: pointer; appearance: auto; }
                 .custom-select option { background-color: #f8fafc; color: #0f172a; font-weight: 500; padding: 12px; font-size: 0.95rem; }
                 .custom-select option:hover, .custom-select option:checked { background-color: #e0e7ff; color: #4f46e5; }
                 
-                /* Animations */
                 @keyframes pulse-dot {
                     0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
                     70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
@@ -222,7 +361,6 @@ const AddParcelBody = () => {
                 }
                 .network-pulse { animation: pulse-dot 2s infinite; }
 
-                /* Custom Modal Overlays */
                 .custom-modal-overlay {
                     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                     background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(5px);
@@ -237,11 +375,19 @@ const AddParcelBody = () => {
                 @keyframes fadeIn { to { opacity: 1; } }
                 @keyframes slideUp { to { transform: translateY(0); opacity: 1; } }
 
-                /* Scaled QR Container to prevent scrolling */
                 .qr-scale-container {
-                    transform: scale(0.65);
+                    transform: scale(0.85);
                     transform-origin: top center;
-                    margin-bottom: -70px; 
+                    margin-bottom: -30px; 
+                }
+                
+                .rate-receipt {
+                    background: rgba(255,255,255,0.8);
+                    border: 1px dashed rgba(16, 185, 129, 0.4);
+                    border-radius: 16px;
+                    padding: 1.25rem;
+                    margin-bottom: 1.5rem;
+                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
                 }
             `}</style>
 
@@ -268,35 +414,16 @@ const AddParcelBody = () => {
                         </div>
                         <h4 className="fw-bold text-slate-800 mb-2">{modalConfig.title}</h4>
                         <p className="text-slate-500 mb-4">{modalConfig.message}</p>
-                        <button 
-                            onClick={closeModal} 
-                            className={`btn w-100 rounded-pill py-2 fw-bold text-white shadow-sm ${
-                                modalConfig.type === 'success' ? 'btn-success' : 
-                                modalConfig.type === 'warning' ? 'btn-warning text-dark' : 'btn-danger'
-                            }`}
-                        >
+                        <button onClick={closeModal} className={`btn w-100 rounded-pill py-2 fw-bold text-white shadow-sm ${modalConfig.type === 'success' ? 'btn-success' : modalConfig.type === 'warning' ? 'btn-warning text-dark' : 'btn-danger'}`}>
                             Understood
                         </button>
                     </div>
                 </div>
             )}
 
-            <main 
-                className="container-fluid vh-100 vw-100 d-flex align-items-center justify-content-center p-3 p-xl-4 m-0 textured-bg" 
-                style={{ overflow: 'hidden' }}
-            >
-                <div 
-                    className="card border-0 w-100 h-100 d-flex flex-column" 
-                    style={{ 
-                        borderRadius: '24px', 
-                        boxShadow: '0 25px 50px -12px rgba(71, 85, 105, 0.25)',
-                        maxWidth: '1800px',
-                        overflow: 'hidden',
-                        backgroundColor: 'rgba(255, 255, 255, 0.55)',
-                        backdropFilter: 'blur(24px)'
-                    }}
-                >
-                    {/* Header: Network status badge on the right */}
+            <main className="container-fluid vh-100 vw-100 d-flex align-items-center justify-content-center p-3 p-xl-4 m-0 textured-bg" style={{ overflow: 'hidden' }}>
+                <div className="card border-0 w-100 h-100 d-flex flex-column" style={{ borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(71, 85, 105, 0.25)', maxWidth: '1800px', overflow: 'hidden', backgroundColor: 'rgba(255, 255, 255, 0.55)', backdropFilter: 'blur(24px)' }}>
+                    
                     <div className="d-flex justify-content-end px-4 py-3 flex-shrink-0 w-100">
                         <div className="d-flex align-items-center gap-2 bg-white bg-opacity-90 px-4 py-2 rounded-pill border border-slate-200 shadow-sm">
                             <span className="bg-success rounded-circle network-pulse" style={{ width: '8px', height: '8px' }}></span>
@@ -304,7 +431,6 @@ const AddParcelBody = () => {
                         </div>
                     </div>
 
-                    {/* Form Body */}
                     <div className="card-body p-0 h-100 bg-transparent">
                         <form onSubmit={handleSubmit} className="row g-0 h-100 m-0">
                             
@@ -341,7 +467,6 @@ const AddParcelBody = () => {
                                     </div>
                                 </div>
 
-                                {/* Immersive Inner Box */}
                                 <div className="p-3 mt-2 rounded-4 glass-panel position-relative">
                                     <label className="form-label small fw-bold text-slate-700 mb-2">Dimensions (cm) & Weight</label>
                                     <div className="d-flex gap-2 mb-3">
@@ -366,34 +491,60 @@ const AddParcelBody = () => {
                                 </h5>
 
                                 <div className="d-flex flex-column gap-3 flex-grow-1">
-                                    {/* Origin Panel - Immersive Glass Panel */}
+                                    {/* Origin Panel */}
                                     <div className="p-3 rounded-4 glass-panel position-relative">
-                                        <label className="form-label small fw-bold text-slate-700 mb-2">Origin (Sender)</label>
+                                        <label className="form-label small fw-bold text-slate-700 mb-2">Origin (Sender) - India</label>
                                         <div className="row g-2">
                                             <div className="col-12">
                                                 <input type="text" name="srcPincode" value={parcelData.srcPincode} onChange={handleChange} className="custom-input" placeholder="Origin Pincode / Zip Code" required />
                                             </div>
                                             <div className="col-6">
-                                                <input type="text" name="srcCity" value={parcelData.srcCity} onChange={handleChange} className="custom-input" placeholder="City" required />
+                                                <select name="srcState" value={parcelData.srcState} onChange={handleChange} className="custom-select" required>
+                                                    <option value="" disabled>Select State...</option>
+                                                    {srcStatesAvailable.map(state => <option key={state} value={state}>{state}</option>)}
+                                                </select>
                                             </div>
                                             <div className="col-6">
-                                                <input type="text" name="srcState" value={parcelData.srcState} onChange={handleChange} className="custom-input" placeholder="State" required />
+                                                <select name="srcCity" value={parcelData.srcCity} onChange={handleChange} className="custom-select" required disabled={!parcelData.srcState}>
+                                                    <option value="" disabled>Select City...</option>
+                                                    {srcCitiesAvailable.map(city => <option key={city} value={city}>{city}</option>)}
+                                                </select>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Destination Panel - Immersive Glass Panel */}
+                                    {/* Destination Panel */}
                                     <div className="p-3 rounded-4 flex-grow-1 glass-panel position-relative">
                                         <label className="form-label small fw-bold text-slate-700 mb-2">Destination (Receiver)</label>
                                         <div className="row g-2">
                                             <div className="col-12">
+                                                <select name="destCountry" value={parcelData.destCountry} onChange={handleChange} className="custom-select" disabled={parcelData.serviceType === 'Domestic'} required>
+                                                    {parcelData.serviceType === 'Domestic' ? (
+                                                        <option value="India">India (Domestic)</option>
+                                                    ) : (
+                                                        <>
+                                                            <option value="" disabled>Select Country...</option>
+                                                            {Object.keys(locationData).filter(c => c !== "India").map(country => (
+                                                                <option key={country} value={country}>{country}</option>
+                                                            ))}
+                                                        </>
+                                                    )}
+                                                </select>
+                                            </div>
+                                            <div className="col-12">
                                                 <input type="text" name="destPincode" value={parcelData.destPincode} onChange={handleChange} className="custom-input" placeholder="Destination Pincode / Zip Code" required />
                                             </div>
                                             <div className="col-6">
-                                                <input type="text" name="destCity" value={parcelData.destCity} onChange={handleChange} className="custom-input" placeholder="City" required />
+                                                <select name="destState" value={parcelData.destState} onChange={handleChange} className="custom-select" required disabled={!parcelData.destCountry}>
+                                                    <option value="" disabled>Select State/Region...</option>
+                                                    {destStatesAvailable.map(state => <option key={state} value={state}>{state}</option>)}
+                                                </select>
                                             </div>
                                             <div className="col-6">
-                                                <input type="text" name="destState" value={parcelData.destState} onChange={handleChange} className="custom-input" placeholder="State" required />
+                                                <select name="destCity" value={parcelData.destCity} onChange={handleChange} className="custom-select" required disabled={!parcelData.destState}>
+                                                    <option value="" disabled>Select City...</option>
+                                                    {destCitiesAvailable.map(city => <option key={city} value={city}>{city}</option>)}
+                                                </select>
                                             </div>
                                         </div>
                                     </div>
@@ -407,20 +558,31 @@ const AddParcelBody = () => {
                                     Finalization
                                 </h5>
 
-                                {/* Action Panel - Immersive Glass Panel */}
                                 <div className="flex-grow-1 d-flex flex-column justify-content-center align-items-center rounded-4 p-4 glass-panel position-relative">
-                                    
                                     {!parcelId ? (
                                         <div className="text-center w-100">
-                                            <div className="mb-4 text-slate-600 small px-3 fw-medium">
-                                                Please review all routing nodes and package dimensions before securely committing to the global network.
-                                            </div>
-                                            <button 
-                                                type="submit" 
-                                                className="btn btn-dark btn-lg w-100 rounded-pill shadow-sm"
-                                                disabled={loading}
-                                                style={{ padding: '16px 0', backgroundColor: '#0f172a', border: 'none' }}
-                                            >
+                                            {estimatedPostage ? (
+                                                <div className="rate-receipt text-start">
+                                                    <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-10">
+                                                        <span className="small text-slate-500 fw-bold text-uppercase">Chargeable Weight</span>
+                                                        <span className="fw-bold text-slate-800">{estimatedPostage.chargeableWeight} kg</span>
+                                                    </div>
+                                                    <div className="d-flex justify-content-between align-items-center pt-1">
+                                                        <span className="small text-slate-500 fw-bold text-uppercase">Estimated Rate</span>
+                                                        {estimatedPostage.isFree ? (
+                                                            <span className="fs-5 fw-bolder text-info">Free Postage</span>
+                                                        ) : (
+                                                            <span className="fs-4 fw-bolder text-success">₹{estimatedPostage.cost}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="mb-4 text-slate-600 small px-3 fw-medium">
+                                                    Please complete origin/destination, category, dimensions, and weight to see your estimated rate.
+                                                </div>
+                                            )}
+
+                                            <button type="submit" className="btn btn-dark btn-lg w-100 rounded-pill shadow-sm" disabled={loading} style={{ padding: '16px 0', backgroundColor: '#0f172a', border: 'none' }}>
                                                 {loading ? (
                                                     <div className="d-flex align-items-center justify-content-center gap-2">
                                                         <span className="spinner-border spinner-border-sm text-light" role="status" aria-hidden="true"></span>
@@ -436,18 +598,13 @@ const AddParcelBody = () => {
                                             <h5 className="text-slate-800 fw-bold mb-1">Manifest Secured</h5>
                                             <p className="text-slate-500 small mb-2">Tracking ID: <span className="fw-bold text-indigo-600" style={{ color: '#4f46e5' }}>{parcelId}</span></p>
                                             
-                                            {/* Scaled QR Container to fit without scrolling */}
                                             <div className="qr-scale-container bg-white p-3 rounded-4 shadow-sm border border-slate-200">
-                                                <ParcelQr key={parcelId} parcelId={parcelId} />
+                                                <ParcelQr key={parcelId} parcelId={parcelId} parcelData={parcelData} />
                                             </div>
                                             
                                             <p className="small text-slate-500 mt-4 mb-3 fw-medium">Ready for transit scanning</p>
                                             
-                                            <button 
-                                                type="button" 
-                                                onClick={() => { setParcelId(''); resetForm(); }}
-                                                className="btn btn-outline-dark btn-sm rounded-pill px-4 fw-bold"
-                                            >
+                                            <button type="button" onClick={() => { setParcelId(''); resetForm(); }} className="btn btn-outline-dark btn-sm rounded-pill px-4 fw-bold">
                                                 Add Another Parcel
                                             </button>
                                         </div>
