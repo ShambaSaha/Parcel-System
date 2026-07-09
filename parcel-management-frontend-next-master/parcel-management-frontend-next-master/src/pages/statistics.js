@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useGlobalContext } from "../context/GlobalContext"
+import { useGlobalContext } from "../context/GlobalContext";
 import {
   FaBoxOpen,
   FaQrcode,
@@ -17,7 +17,6 @@ import {
 } from "react-icons/fa";
 
 export default function Dashboard() {
-  // All stats initialized to 0; no more hardcoded values
   const [stats, setStats] = useState({
     totalParcels: 0,
     pending: 0,
@@ -31,9 +30,17 @@ export default function Dashboard() {
 
   const [vehicles, setVehicles] = useState([]);
 
-  const { isLoggedIn } = useGlobalContext();
+  // Fetch 'role' along with isLoggedIn from your global context
+  const { isLoggedIn, role } = useGlobalContext(); 
   const router = useRouter();
 
+  // Exactly matches your registration option values
+  const currentRole = role?.toUpperCase() || "";
+
+  // Define strict feature access based on registration tokens
+  const showVehicleFeatures = ["ADMIN", "TRUCK_ADMIN", "THREE_PL"].includes(currentRole);
+  const showGeneralFeatures = ["ADMIN", "POST_MANAGER", "THREE_PL"].includes(currentRole);
+  
   // 1️⃣ Auth redirect hook
   useEffect(() => {
     if (!isLoggedIn) {
@@ -58,7 +65,6 @@ export default function Dashboard() {
         const result = await res.json();
         
         if (result.data && Array.isArray(result.data)) {
-          // Dynamically count the status of each parcel
           let pending = 0, delivered = 0, cancelled = 0, inTransit = 0, onHold = 0, failed = 0;
           
           result.data.forEach(parcel => {
@@ -112,8 +118,6 @@ export default function Dashboard() {
             ...prev,
             totalVehicles: result.data.length,
           }));
-          
-          // Store up to the 5 most recent vehicles for the dashboard preview
           setVehicles(result.data.slice(0, 5)); 
         }
       } catch (err) {
@@ -124,18 +128,36 @@ export default function Dashboard() {
     fetchVehicles();
   }, [isLoggedIn]);
 
+  // Master definition of all actions with target access types
+  const allActions = [
+    { title: "Add Parcel", link: "/parcel/add-parcel", icon: FaBoxOpen, category: "general" },
+    { title: "Postal Calculator", link: "/Charges/postal-calculator", icon: FaQrcode, category: "general" },
+    { title: "View Parcels", link: "/parcel/view-all", icon: FaListUl, category: "general" },
+    { title: "Add Vehicle", link: "/vehicle/add-new", icon: FaTruck, category: "vehicle" },
+    { title: "Locate Post Offices", link: "/post-office/view-all", icon: FaMapMarkedAlt, category: "general" },
+    { title: "Create Truck Route", link: "/truck-routes/create-route", icon: FaRoute, category: "general" },
+    { title: "Dynamic Routes", link: "/truck-routes/dynamic-routing", icon: FaProjectDiagram, category: "general" },
+    { title: "3D Loading Parcels", link: "/parcel/advanced-parcel-load", icon: FaCubes, category: "vehicle" },
+  ];
+
+  // Dynamic Filtering based on your rules
+  const visibleActions = allActions.filter(action => {
+    if (action.category === "general" && !showGeneralFeatures) return false;
+    if (action.category === "vehicle" && !showVehicleFeatures) return false;
+    return true;
+  });
+
   // ✅ CONDITIONAL RETURN AFTER ALL HOOKS
   if (!isLoggedIn) return null;
 
   return (
     <div className="dashboard">
-      {/* Header */}
       <Head><title>Dashboard</title></Head>
       <div className="dashboard-header">
         <h2>
-          👋 Welcome back to,
+          
           <br />
-          <span>Parcel Manager</span>
+          <span>Hi👋 {role}</span>
         </h2>
       </div>
 
@@ -151,129 +173,88 @@ export default function Dashboard() {
         <StatPill title="Failed" value={stats.failed} color="orange" />
       </div>
 
-      {/* Vehicle Table */}
-      <div className="card">
-        <div className="card-header">
-          <h3>🚚 Vehicle List</h3>
-          <Link href="/vehicle/view-all">View All →</Link>
-        </div>
+      {/* Conditionally display the entire vehicle preview table */}
+      {showVehicleFeatures && (
+        <div className="card">
+          <div className="card-header">
+            <h3>🚚 Vehicle List</h3>
+            <Link href="/vehicle/view-all">View All →</Link>
+          </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Vehicle ID</th>
-              <th>Number</th>
-              <th>Volume / Weight</th>
-              <th>Fuel Capacity</th>
-              <th>Status</th>
-              <th>Route / Driver</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vehicles.length > 0 ? (
-              vehicles.map((vehicle, index) => {
-                // Map properties dynamically to fit both the backend schema and view-all response
-                const vId = vehicle.vehicleId || vehicle._id?.substring(0, 7) || "N/A";
-                const vNum = vehicle.vehicleNumber || vehicle.number || "N/A";
-                
-                // Safely handle Volume/Weight in case the database returns an object
-                let vVol = "N/A";
-                const rawVolume = vehicle.volume || vehicle.weight;
-
-                if (rawVolume) {
-                  if (typeof rawVolume === "object") {
-                    // Extract total if it exists, otherwise format as L x B x H
-                    vVol = rawVolume.total !== undefined 
-                      ? rawVolume.total 
-                      : `${rawVolume.length || 0}x${rawVolume.breadth || 0}x${rawVolume.height || 0}`;
-                  } else {
-                    vVol = rawVolume;
-                  }
-                }
-
-                const vFuel = vehicle.fuelCapacity ? `${vehicle.fuelCapacity} L` : "N/A";
-                
-                // Fallback logic for status
-                const hasRoute = vehicle.currentRoute || vehicle.routeId;
-                const status = vehicle.status || (hasRoute ? "IN TRANSIT" : "IDLE");
-                  
-                // Display Route ID if available, otherwise show Driver assignment status
-                const routeOrDriver = hasRoute 
-                  ? `Route: ${hasRoute}` 
-                  : (vehicle.assignedDriver ? "Driver Assigned" : "Unassigned");
-
-                return (
-                  <TableRow
-                    key={vehicle._id || index}
-                    id={vId}
-                    number={vNum} 
-                    volume={vVol}
-                    fuel={vFuel}
-                    status={status.toUpperCase()}
-                    routeOrDriver={routeOrDriver}
-                  />
-                );
-              })
-            ) : (
+          <table>
+            <thead>
               <tr>
-                <td colSpan="6" style={{ textAlign: "center", padding: "1rem" }}>
-                  Loading vehicles or no vehicles available...
-                </td>
+                <th>Vehicle ID</th>
+                <th>Number</th>
+                <th>Volume / Weight</th>
+                <th>Fuel Capacity</th>
+                <th>Status</th>
+                
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {vehicles.length > 0 ? (
+                vehicles.map((vehicle, index) => {
+                  const vId = vehicle.vehicleId || vehicle._id?.substring(0, 7) || "N/A";
+                  const vNum = vehicle.vehicleNumber || vehicle.number || "N/A";
+                  
+                  let vVol = "N/A";
+                  const rawVolume = vehicle.volume || vehicle.weight;
 
-      {/* Quick Actions */}
+                  if (rawVolume) {
+                    if (typeof rawVolume === "object") {
+                      vVol = rawVolume.total !== undefined 
+                        ? rawVolume.total 
+                        : `${rawVolume.length || 0}x${rawVolume.breadth || 0}x${rawVolume.height || 0}`;
+                    } else {
+                      vVol = rawVolume;
+                    }
+                  }
+
+                  const vFuel = vehicle.fuelCapacity ? `${vehicle.fuelCapacity} L` : "N/A";
+                  const hasRoute = vehicle.currentRoute || vehicle.routeId;
+                  const status = vehicle.status || (hasRoute ? "IN TRANSIT" : "IDLE");
+
+                  return (
+                    <TableRow
+                      key={vehicle._id || index}
+                      id={vId}
+                      rawId={vehicle._id} // Passing raw DB id for accurate routing
+                      number={vNum} 
+                      volume={vVol}
+                      fuel={vFuel}
+                      status={status.toUpperCase()}
+                    />
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: "center", padding: "1rem" }}>
+                    Loading vehicles or no vehicles available...
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Quick Actions Grid displaying filtered cards */}
       <div className="actions-grid">
-        <ActionCard
-          title="Add Parcel"
-          link="/parcel/add-parcel"
-          icon={FaBoxOpen}
-        />
-        <ActionCard
-          title="Postal Calculator"
-          link="/Charges/postal-calculator"
-          icon={FaQrcode}
-        />
-        <ActionCard
-          title="View Parcels"
-          link="/parcel/view-all"
-          icon={FaListUl}
-        />
-        <ActionCard
-          title="Add Vehicle"
-          link="/vehicle/add-new"
-          icon={FaTruck}
-        />
-        <ActionCard
-          title="Locate Post Offices"
-          link="/post-office/view-all"
-          icon={FaMapMarkedAlt}
-        />
-        <ActionCard
-          title="Create Truck Route"
-          link="/truck-routes/create-route"
-          icon={FaRoute}
-        />
-        <ActionCard
-          title="Dynamic Routes"
-          link="/truck-routes/dynamic-routing"
-          icon={FaProjectDiagram}
-        />
-        <ActionCard
-          title="3D Loading Parcels"
-          link="/parcel/advanced-parcel-load"
-          icon={FaCubes}
-        />
+        {visibleActions.map((action, i) => (
+          <ActionCard
+            key={i}
+            title={action.title}
+            link={action.link}
+            icon={action.icon}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
 /* ===== Components ===== */
-
 const StatPill = ({ title, value, color }) => (
   <div className={`stat-pill ${color}`}>
     <p>{title}</p>
@@ -281,10 +262,9 @@ const StatPill = ({ title, value, color }) => (
   </div>
 );
 
-const TableRow = ({ id, number, volume, fuel, status, routeOrDriver }) => {
-  // Simple logic to color-code status based on IDLE vs IN TRANSIT
+// Updated TableRow to include the Track button
+const TableRow = ({ id, rawId, number, volume, fuel, status }) => {
   const statusClass = status.includes("IN TRANSIT") || status.includes("ACTIVE") ? "active" : "idle";
-  
   return (
     <tr>
       <td>{id}</td>
@@ -294,7 +274,7 @@ const TableRow = ({ id, number, volume, fuel, status, routeOrDriver }) => {
       <td>
         <span className={`status ${statusClass}`}>{status}</span>
       </td>
-      <td>{routeOrDriver}</td>
+      
     </tr>
   );
 };

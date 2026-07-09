@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import 'bootstrap/dist/css/bootstrap.min.css';
 
@@ -19,7 +19,15 @@ const AdvancedParcelLoadBody = () => {
     const [hasFetchedParcels, setHasFetchedParcels] = useState(false);
     const [hasFetchedTrucks, setHasFetchedTrucks] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
-    
+    const deliveryTimerRef = useRef(null);
+
+    // Clean up the timer if the user leaves the page before 1 minute is up
+    useEffect(() => {
+        return () => {
+            if (deliveryTimerRef.current) clearTimeout(deliveryTimerRef.current);
+        };
+    }, []);
+
     // 👇 Control 3D visibility
     const [show3D, setShow3D] = useState(false);
 
@@ -120,14 +128,44 @@ const AdvancedParcelLoadBody = () => {
             }).then(r => r.json());
 
             if (res.status === "success") {
-                setModalConfig({ isOpen: true, title: "Success", message: "Deployed.", type: "success" });
+                // Inform the user that the timer has started
+                setModalConfig({ 
+                    isOpen: true, 
+                    title: "Vehicle Deployed", 
+                    message: "Deployment successful. The vehicle will reach its destination in 1 minute.", 
+                    type: "success" 
+                });
+                
+                // Save the vehicle name before setting it to null so the timer knows who arrived
+                const dispatchedVehicleName = selectedVehicle.name || selectedVehicle.vehicleNumber || 'Vehicle';
+
                 setSelectedVehicle(null);
                 setShow3D(false);
                 setAllParcel(prev => prev.map(p => ({ ...p, status: "not-selected" })));
+
+                // 👇 Start the 1-minute countdown (60000 ms)
+                if (deliveryTimerRef.current) clearTimeout(deliveryTimerRef.current);
+                deliveryTimerRef.current = setTimeout(() => {
+                    handleDeliveryComplete(dispatchedVehicleName);
+                }, 60000); 
             }
         } catch {
             setModalConfig({ isOpen: true, title: "Error", message: "Failed to deploy.", type: "error" });
         }
+    }
+
+    // 👇 NEW: This function runs exactly 1 minute after deployment
+    function handleDeliveryComplete(vehicleName) {
+        // Optional: If you have an endpoint to mark it delivered in the database, call it here!
+        // fetch(`http://${process.env.NEXT_PUBLIC_BACKEND_URL}/vehicle/mark-delivered`, { ... })
+
+        // Show the success popup
+        setModalConfig({ 
+            isOpen: true, 
+            title: "Delivery Completed! 🎉", 
+            message: `${vehicleName} has successfully completed its route and delivered all parcels.`, 
+            type: "success" 
+        });
     }
 
     function calculateOptimalLoad() {

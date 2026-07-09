@@ -34,7 +34,8 @@ import viewUserOrders from './pages/third-party/third-party-view-all.js';
 
 import createTruckRoute from './pages/truck-routes/createRoute.js';
 import getOneRoute from './pages/truck-routes/getOneRoute.js';
-import getAllTruckRoutes from './pages/truck-routes/viewRoutes.js';
+//import getAllTruckRoutes from './pages/truck-routes/viewRoutes.js';
+import getallRoutes from './pages/truck-routes/getallRoutes.js';
 import setTruckRoute from './pages/vehicle/set-route.js';
 import addNewContractor from './pages/contractor/add-new.js';
 import getAllContractor from './pages/contractor/all-contractor.js';
@@ -108,7 +109,8 @@ app.post('/user/login',loginUser)
 
 // ---- Truck Routes ---- //
 app.post('/truck-routes/create-route', createTruckRoute); // saptarshi
-app.post('/truck-routes/get-all-routes', getAllTruckRoutes); // saptarshi
+//app.post('/truck-routes/get-all-routes', getAllTruckRoutes); // saptarshi
+app.get('/truck-routes/getallRoutes', getallRoutes);
 app.post('/truck-routes/get-one-route', getOneRoute); // saptarshi
 
 

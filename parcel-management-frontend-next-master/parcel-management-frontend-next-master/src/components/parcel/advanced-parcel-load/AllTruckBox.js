@@ -19,6 +19,9 @@ const AllTruckBox = ({ allTrucks, getAllTruck, selectedVehicle, setSelectedVehic
     }
 
     async function fetchRoute(routeId) {
+        // If the truck doesn't have a routeId, don't even try to fetch (saves an error!)
+        if (!routeId) return false;
+
         const API = `http://${process.env.NEXT_PUBLIC_BACKEND_URL}/truck-routes/get-one-route`;
         const body = { id: routeId };
         const params = {
@@ -32,25 +35,25 @@ const AllTruckBox = ({ allTrucks, getAllTruck, selectedVehicle, setSelectedVehic
         try {
             setLoading(true);
             const res = await fetch(API, params).then(res => res.json());
-            console.log(res)
+            console.log(res);
+            
             if (res.status === 'success') {
-                toast.success("Route fetched successfully");
-                setLoading(false)
+                // toast.success("Route fetched successfully"); <-- Removed popup
+                setLoading(false);
                 return res.data;
             } else {
-                toast.error("Failed to fetch route");
-                setLoading(false)
+                // toast.error("Failed to fetch route"); <-- Removed popup
+                setLoading(false);
                 return false;
             }
         } catch (error) {
-            console.log(error);
-            toast.error("Failed to fetch route");
-            setLoading(false)
+            console.log("Error fetching route for truck:", error);
+            // toast.error("Failed to fetch route"); <-- Removed popup
+            setLoading(false);
             return false;
         } finally {
-            setLoading(false)
+            setLoading(false);
         }
-        return false;
     }
 
 

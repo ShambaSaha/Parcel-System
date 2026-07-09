@@ -1,99 +1,116 @@
 "use client";
 
 import decodePolyline from '@/lib/PolylineDecoder';
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { OlaMaps } from '../../../../public/olamaps/olamaps-js-sdk.es';
 
-
 const TruckRouteMap = ({ routeData, allPoints, allRoutes }) => {
+    const mapContainer = useRef(null);
     const myMap = useRef(null);
     const olaMaps = useRef(null);
-    const mapMarker = useRef(null);
-    const routeMarker = useRef(null);
     const mapLoaded = useRef(false);
+    
+    // Refs to keep track of drawn elements so we can clear them when data changes
+    const markersRef = useRef([]);
+    const routeLayersRef = useRef([]);
 
-    async function initializeOlaMaps() {
+    useLayoutEffect(() => {
+        // Prevent multiple initializations in React strict mode
+        if (myMap.current) return; 
+
         const _olaMaps = new OlaMaps({
             apiKey: "yPxHRvKgjEkVrjAzVJU733chCWyn0EHVjJRet18G",
         });
 
         const myOlaMap = _olaMaps.init({
             style: "https://api.olamaps.io/tiles/vector/v1/styles/default-light-standard/style.json",
-            container: 'map',
-            // center: [77.61648476788898, 12.931423492103944],
+            container: mapContainer.current,
             center: [88.3684946, 22.4954896],
             zoom: 14,
         });
 
-        // mapMarker.current = _olaMaps
-        //     .addMarker({ offset: [0, 6], anchor: 'bottom', color: 'red' })
-        //     .setLngLat([88.3684946, 22.4954896])
-        //     .addTo(myOlaMap);
-
         myMap.current = myOlaMap;
         olaMaps.current = _olaMaps;
 
-        myMap.current.on('load', async () => {
-            if (!mapLoaded.current) {
-                mapLoaded.current = true;
-                await drawPoints();
-                // drawLine();
-                // console.log('allRotes', allRoutes)
-                await drawMultipleLines()
-            }
+        myMap.current.on('load', () => {
+            mapLoaded.current = true;
+            updateMapElements(); 
         });
+
+        // Cleanup on component unmount
+        return () => {
+            if (myMap.current) {
+                myMap.current.remove();
+                myMap.current = null;
+                mapLoaded.current = false;
+            }
+        };
+    }, []);
+
+    // Watch for changes in points or routes and update the map dynamically
+    useEffect(() => {
+        if (mapLoaded.current) {
+            updateMapElements();
+        }
+    }, [allPoints, allRoutes]);
+
+    // Master function to orchestrate drawing
+    const updateMapElements = () => {
+        clearMapElements();
+        drawPoints();
+        drawMultipleLines();
+        fitMapToBounds();
     };
 
+    // Clear existing markers and lines before redrawing
+    const clearMapElements = () => {
+        // 1. Clear Markers
+        markersRef.current.forEach(marker => marker.remove());
+        markersRef.current = [];
 
-    async function drawLine() {
-        if (routeMarker.current) return;
-
-        console.log("route data", routeData)
-        const coordinates = decodePolyline(routeData.polyline);
-        console.log("road coordinates", coordinates);
-
-        myMap.current.addSource('balerroute', {
-            type: 'geojson',
-            data: {
-                type: 'Feature',
-                properties: {},
-                geometry: {
-                    type: 'LineString',
-                    coordinates: [...coordinates]
-                },
-            },
-        })
-
-
-        myMap.current.addLayer({
-            id: 'balerroute',
-            type: 'line',
-            source: 'balerroute',
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: {
-                'line-color': 'blue',
-                'line-width': 5
-            }
+        // 2. Clear Polylines (Layers and Sources)
+        routeLayersRef.current.forEach(id => {
+            if (myMap.current.getLayer(id)) myMap.current.removeLayer(id);
+            if (myMap.current.getSource(id)) myMap.current.removeSource(id);
         });
+        routeLayersRef.current = [];
+    };
 
-        console.log("layer added");
-        myMap.current.fitBounds(coordinates);
-        routeMarker.current = true;
+    const drawPoints = () => {
+    if (!allPoints || !olaMaps.current || !myMap.current) return;
 
-    }
+    // Only draw points that have valid coordinates
+    const validPoints = allPoints.filter(p => p.lat && p.long);
 
-    async function drawMultipleLines() {
-        if (!allRoutes || allRoutes.length === 0) {
-            console.log("No routes to draw.");
-            return;
-        }
+    validPoints.forEach((point, index) => {
+        // Logic: If it's the very first point (0) or the very last point, make it red. 
+        // Anything in between becomes green.
+        const isStartOrEnd = index === 0 || index === validPoints.length - 1;
+        const markerColor = isStartOrEnd ? 'red' : 'green';
+
+        const marker = olaMaps.current
+            .addMarker({ 
+                offset: [0, 6], 
+                anchor: 'bottom', 
+                color: markerColor 
+            })
+            .setLngLat([Number(point.long), Number(point.lat)])
+            .addTo(myMap.current);
+        
+        // Save reference for future cleanup when the map re-renders
+        markersRef.current.push(marker);
+    });
+};
+
+    const drawMultipleLines = () => {
+        if (!allRoutes || allRoutes.length === 0 || !myMap.current) return;
 
         allRoutes.forEach((route, index) => {
+            if (!route?.route?.polyline) return;
+
             const coordinates = decodePolyline(route.route.polyline);
-
-            const sourceId = `route-${index}`;
-            const layerId = `route-${index}`;
-
+            const sourceId = `route-source-${index}`;
+            const layerId = `route-layer-${index}`;
 
             myMap.current.addSource(sourceId, {
                 type: 'geojson',
@@ -113,46 +130,44 @@ const TruckRouteMap = ({ routeData, allPoints, allRoutes }) => {
                 source: sourceId,
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
                 paint: {
-                    'line-color': "blue", // Use a function to get random colors
+                    'line-color': "#007bff", // Standardized to a clean blue
                     'line-width': 5,
                 },
             });
+
+            // Save reference for future cleanup
+            routeLayersRef.current.push(layerId);
+            routeLayersRef.current.push(sourceId); // Saving source ID to remove it later too
         });
-    }
+    };
 
+    const fitMapToBounds = () => {
+        const validPoints = allPoints?.filter(p => p.lat && p.long) || [];
+        if (validPoints.length === 0 || !myMap.current) return;
 
-    function getRandomColor() {
-        const letters = '0123456789ABCDEF';
-        let color = '#';
-        for (let i = 0; i < 6; i++) {
-            color += letters[Math.floor(Math.random() * 16)];
-        }
-        return color;
-    }
+        // Calculate the bounding box for all points
+        let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
 
-    async function drawPoints() {
-        console.log("all points", allPoints);
+        validPoints.forEach(p => {
+            const lat = Number(p.lat);
+            const lng = Number(p.long);
+            minLat = Math.min(minLat, lat);
+            maxLat = Math.max(maxLat, lat);
+            minLng = Math.min(minLng, lng);
+            maxLng = Math.max(maxLng, lng);
+        });
 
-        for (let i = 0; i < allPoints.length; i++) {
-            const point = allPoints[i];
-            console.log(point)
-            olaMaps.current
-                .addMarker({ offset: [0, 6], anchor: 'bottom', color: (point.type === "post-office") ? 'red' : 'green' })
-                .setLngLat([Number(point.long), Number(point.lat)])
-                .addTo(myMap.current);
-        }
-
-
-
-    }
-
-    useLayoutEffect(() => {
-        initializeOlaMaps();
-    }, []);
+        // Fit the camera to these bounds with some padding
+        myMap.current.fitBounds(
+            [[minLng, minLat], [maxLng, maxLat]], 
+            { padding: 50, duration: 1000 } // Duration adds a smooth zooming animation
+        );
+    };
 
     return (
-        <div id="map" style={{ "minHeight": "400px", "height": "100%" }}></div>
-    )
+        // Replaced ID with ref for better React integration
+        <div ref={mapContainer} style={{ minHeight: "400px", height: "100%", width: "100%", borderRadius: "8px", overflow: "hidden" }}></div>
+    );
 }
 
-export default TruckRouteMap
+export default TruckRouteMap;

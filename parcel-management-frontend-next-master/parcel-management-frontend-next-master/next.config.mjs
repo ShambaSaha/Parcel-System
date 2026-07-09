@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false,
 
   // Static export
-  output: "export",
+  // output: "export",
   distDir: "out",
 
   // 🔥 REQUIRED for react-three

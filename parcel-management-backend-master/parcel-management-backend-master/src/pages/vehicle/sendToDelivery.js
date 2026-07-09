@@ -4,7 +4,7 @@ async function sendToDelivery(req, res) {
   const { vehicleId } = req.body;
 
   if (!vehicleId) {
-    return res.json({
+    return res.status(400).json({
       status: "error",
       message: "vehicleId is required"
     });
@@ -14,36 +14,32 @@ async function sendToDelivery(req, res) {
   const client = new MongoClient(uri);
 
   try {
+    await client.connect();
     const database = client.db("parcel-management-system");
     const vehicles = database.collection("vehicles");
 
-    // 1️⃣ Set all vehicles to IDLE
-    await vehicles.updateMany(
-      {},
-      { $set: { status: "IDLE" } }
-    );
-
-    // 2️⃣ Set selected vehicle to ON_DELIVERY
+    // 🚀 FIXED: Removed the updateMany that was resetting all other trucks!
+    // We only want to update the status of this specific vehicle.
     const result = await vehicles.updateOne(
       { _id: new ObjectId(vehicleId) },
       { $set: { status: "ON_DELIVERY" } }
     );
 
     if (result.matchedCount === 0) {
-      return res.json({
+      return res.status(404).json({
         status: "error",
         message: "Vehicle not found"
       });
     }
 
-    res.json({
+    res.status(200).json({
       status: "success",
       message: "Vehicle sent to delivery"
     });
 
   } catch (error) {
-    console.error(error);
-    res.json({
+    console.error("Error in sendToDelivery:", error);
+    res.status(500).json({
       status: "error",
       message: "Failed to send vehicle to delivery"
     });

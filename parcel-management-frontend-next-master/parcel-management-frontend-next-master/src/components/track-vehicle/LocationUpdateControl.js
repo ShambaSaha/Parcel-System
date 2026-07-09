@@ -1,123 +1,93 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
-import _ from 'lodash'
+"use client";
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useTrackVehicleContext } from '@/context/TrackVehicleContext';
+import { toast } from 'react-toastify';
 
-const LocationUpdateControl = () => {
-    const { location } = useTrackVehicleContext();
-    const sendLocationInterval = useRef(null);
-    const [intervalTime, setIntervalTime] = useState(3);
-    const [isSendingLocation, setIsSendingLocation] = useState(false);
-    const lastSentLocation = useRef(null);
+const LocationUpdateControl = ({ vehicleId }) => {
+    const { locationRef, selectedRoute } = useTrackVehicleContext();
+    const [isSending, setIsSending] = useState(false);
+    const intervalRef = useRef(null);
 
-    const sendLocation = useCallback(async () => {
-        // Only send if location has changed
-        if (lastSentLocation.current &&
-            lastSentLocation.current.lat === location.lat &&
-            lastSentLocation.current.lng === location.lng) {
-            return;
-        }
+    // Function to send data to your backend
+    const sendLocationToDatabase = async () => {
+        if (!selectedRoute) return;
 
-        const API = `http://${process.env.NEXT_PUBLIC_BACKEND_URL}/set-truck-location`;
-
-        const currentLocation = {
-            id: "truck",
-            lat: location.lat,
-            long: location.lng
+        const payload = {
+            vehicleId: vehicleId,
+            routeId: selectedRoute._id,
+            currentLat: locationRef.current.lat,
+            currentLng: locationRef.current.lng,
+            timestamp: new Date().toISOString()
         };
 
         try {
+            const API = `http://${process.env.NEXT_PUBLIC_BACKEND_URL}/set-truck-location`;
             const response = await fetch(API, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(currentLocation),
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
-            const data = await response.json();
-            console.log('Location sent successfully:', currentLocation);
-            console.log('Server response:', data);
-
-            // Update last sent location
-            lastSentLocation.current = { ...location };
-        } catch (err) {
-            console.error('Error sending location:', err);
+            if (!response.ok) {
+                console.error("Failed to sync location to backend");
+            }
+        } catch (error) {
+            console.error("Error connecting to backend:", error);
         }
-    }, [location]);
+    };
 
-    // Watch for location changes and send updates if sending is active
-    useEffect(() => {
-        if (isSendingLocation) {
-            sendLocation();
+    // Toggle the syncing process
+    const toggleSending = () => {
+        if (isSending) {
+            // Stop sending
+            clearInterval(intervalRef.current);
+            setIsSending(false);
+            toast.info("Stopped broadcasting location.");
+        } else {
+            // Start sending every 3 seconds
+            sendLocationToDatabase(); // Send immediately once
+            intervalRef.current = setInterval(sendLocationToDatabase, 3000);
+            setIsSending(true);
+            toast.success("Live tracking broadcast started!");
         }
-    }, [location, isSendingLocation, sendLocation]);
+    };
 
-    const startSendingLocation = useCallback(async () => {
-        if (isSendingLocation) return;
-
-        // Send initial location
-        await sendLocation();
-
-        // Set up interval for periodic updates
-        sendLocationInterval.current = setInterval(() => {
-            sendLocation();
-        }, intervalTime * 1000);
-
-        setIsSendingLocation(true);
-    }, [intervalTime, isSendingLocation, sendLocation]);
-
-    const stopSendingLocation = useCallback(() => {
-        clearInterval(sendLocationInterval.current);
-        setIsSendingLocation(false);
-        lastSentLocation.current = null;
-    }, []);
-
-    // Update interval if changed while running
-    useEffect(() => {
-        if (isSendingLocation) {
-            clearInterval(sendLocationInterval.current);
-            sendLocationInterval.current = setInterval(() => {
-                sendLocation();
-            }, intervalTime * 1000);
-        }
-    }, [intervalTime, isSendingLocation, sendLocation]);
-
-    // Cleanup on unmount
+    // Cleanup interval if component unmounts
     useEffect(() => {
         return () => {
-            clearInterval(sendLocationInterval.current);
+            if (intervalRef.current) clearInterval(intervalRef.current);
         };
     }, []);
 
     return (
-        <div className='mt-2'>
-            <h6 className="card-subtitle mb-2 text-muted">Location Update Control:</h6>
-
-            {isSendingLocation ? (
-                <div className="input-group mb-3">
-                    <input
-                        type="number"
-                        className="form-control"
-                        placeholder="Interval (in seconds)"
-                        value={intervalTime}
-                        onChange={(e) => setIntervalTime(Math.max(1, Number(e.target.value)))}
-                        min="1"
-                    />
-                    <button
-                        className="btn btn-outline-danger"
-                        type="button"
-                        onClick={stopSendingLocation}
-                    >
-                        Stop
-                    </button>
-                </div>
-            ) : (
-                <button
-                    className="btn btn-primary"
-                    onClick={startSendingLocation}
-                >
-                    Start Sending
-                </button>
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <h5 style={{ color: '#6c757d', fontSize: '0.9rem', textTransform: 'uppercase', marginBottom: '15px' }}>
+                4. Broadcast Location
+            </h5>
+            <button 
+                suppressHydrationWarning
+                onClick={toggleSending}
+                disabled={!selectedRoute}
+                style={{
+                    width: '100%',
+                    padding: '15px',
+                    fontSize: '1.1rem',
+                    fontWeight: 'bold',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: selectedRoute ? 'pointer' : 'not-allowed',
+                    backgroundColor: isSending ? '#dc3545' : '#28a745',
+                    color: 'white',
+                    transition: 'background-color 0.3s'
+                }}
+            >
+                {isSending ? "⏹ Stop Sending" : "▶ Start Broadcasting"}
+            </button>
+            {isSending && (
+                <p style={{ marginTop: '10px', color: '#28a745', fontWeight: 'bold', animation: 'pulse 1.5s infinite' }}>
+                    📡 Syncing to database every 3s...
+                </p>
             )}
         </div>
     );
